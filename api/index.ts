@@ -17,9 +17,9 @@ function runMiddleware(req, res, fn) {
     });
 }
 
-async function handler(req, res) {
+async function handler(req: any, res: any) {
     // Run the middleware
-    await runMiddleware(req, res, webhookCallback(bot));
+    await runMiddleware(req, res, webhookCallback(bot, "std/http"));
 }
 
 export default handler;
