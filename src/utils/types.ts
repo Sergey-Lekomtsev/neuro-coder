@@ -1,4 +1,7 @@
 export interface Step {
   step: string;
-  details: string;
+  details: {
+    en: string;
+    es: string;
+  };
 }

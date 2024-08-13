@@ -4,7 +4,8 @@ import { InputMediaPhoto } from "grammy/types";
 
 import { promises as fs } from "fs";
 import path from "path";
-import { createSlideshow, generateImagesForMeditation, getMeditationSteps } from "../helpers";
+import { createSlideshow, generateImagesForMeditation, getMeditationSteps, translateText } from "../helpers";
+import { Step } from "src/utils/types";
 
 const clipmaker = async (ctx: Context): Promise<void> => {
   try {
@@ -49,43 +50,81 @@ const clipmaker = async (ctx: Context): Promise<void> => {
     });
     console.log(meditationSteps, "meditationSteps");
 
-    // Генерируем изображения для шагов медитации
-    const images = await generateImagesForMeditation(meditationSteps.activities[0].steps);
-    console.log(images, "images");
+    const stepsData: Step[] = await Promise.all(
+      meditationSteps.activities[0].steps.map(async (step, index) => ({
+        step: `Step ${index + 1}`,
+        details: {
+          en: step.details,
+          es: await translateText(step.details, "es"),
+        },
+      })),
+    );
+    console.log(JSON.stringify(stepsData, null, 2), "stepsData");
 
-    // Проверяем, были ли сгенерированы изображения
-    if (images.length === 0) throw new Error("No images found");
+    // Генерация английской версии
+    const englishImages = await generateImagesForMeditation(stepsData, "en");
+    console.log(englishImages, "englishImages");
 
     // Создаем группу медиа для отправки изображений
-    const mediaGroup: InputMediaPhoto[] = images.map((image) => ({
+    const englishMediaGroup: InputMediaPhoto[] = englishImages.map((image) => ({
+      type: "photo",
+      media: new InputFile(image.imagePath),
+      caption: image.text,
+    }));
+    // Отправляем группу изображений пользователю
+    await ctx.replyWithMediaGroup(englishMediaGroup);
+
+    const numberTrack = 10;
+
+    const englishOutputPath = await createSlideshow(
+      englishImages.map((img) => img.imagePath),
+      `src/audio/audio${numberTrack}.mp3`,
+      "output_en.mp4",
+    );
+    console.log(englishOutputPath, "englishOutputPath");
+    // Ждем 1 секунду после создания слайд-шоу
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    // Отправляем видео пользователю
+    await ctx.replyWithVideo(new InputFile(englishOutputPath), {
+      caption: "Video EN meditation",
+    });
+
+    // Генерация испанской версии
+    const spanishImages = await generateImagesForMeditation(stepsData, "es");
+
+    // Создаем группу медиа для отправки изображений
+    const spanishMediaGroup: InputMediaPhoto[] = spanishImages.map((image) => ({
       type: "photo",
       media: new InputFile(image.imagePath),
       caption: image.text,
     }));
 
-    // Отправляем группу изображений пользователю
-    await ctx.replyWithMediaGroup(mediaGroup);
+    await ctx.replyWithMediaGroup(spanishMediaGroup);
 
-    // Получаем пути к изображениям
-    const imagePaths = images.map((img) => img.imagePath);
-    // Определяем путь для выходного видеофайла
-    const outputPath = path.join(process.cwd(), "src", "images", "slideshow.mp4");
+    const spanishOutputPath = await createSlideshow(
+      spanishImages.map((img) => img.imagePath),
+      `src/audio/audio${numberTrack}.mp3`,
+      "output_es.mp4",
+    );
 
-    // Создаем слайд-шоу из изображений
-    await createSlideshow(imagePaths, "src/audio/audio.mp3", outputPath);
     // Ждем 1 секунду после создания слайд-шоу
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Отправляем видео пользователю
-    await ctx.replyWithVideo(new InputFile(outputPath), {
-      caption: "Video meditation",
+    await ctx.replyWithVideo(new InputFile(spanishOutputPath), {
+      caption: "Video ES meditation",
     });
 
     // Удаляем временные файлы
-    await fs.unlink(outputPath);
-    for (const image of images) {
-      await fs.unlink(image.imagePath);
-    }
+    await fs.unlink(englishOutputPath);
+    await fs.unlink(spanishOutputPath);
+    // for (const image of englishImages) {
+    //   await fs.unlink(image.imagePath);
+    // }
+    // for (const image of spanishImages) {
+    //   await fs.unlink(image.imagePath);
+    // }
+    return;
   } catch (error) {
     // В случае ошибки, пробрасываем её дальше
     throw error;

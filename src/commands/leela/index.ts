@@ -56,7 +56,7 @@ const leela = async (ctx: Context): Promise<void> => {
     console.log(meditationSteps, "meditationSteps");
 
     // Генерируем изображения для шагов медитации
-    const images = await generateImagesForMeditation(meditationSteps.activities[0].steps);
+    const images = await generateImagesForMeditation(meditationSteps.activities[0].steps, "en");
     console.log(images, "images");
 
     // Проверяем, были ли сгенерированы изображения

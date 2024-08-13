@@ -170,17 +170,16 @@ export async function addTextOnImage({ imagePath, text, step }: { imagePath: str
         },
       ])
       .toFile(outputPath);
-
-    console.log(`Изображение сохранено: ${outputPath}`);
     return { image, outputPath };
   } catch (error: any) {
     console.error(`Ошибка в addTextOnImage для шага ${step}:`, error.message);
     throw error;
   }
 }
-export async function generateImagesForMeditation(steps: Step[]) {
+export async function generateImagesForMeditation(steps: Step[], language: "en" | "es") {
   const imagesWithText: { imagePath: string; text: string }[] = [];
   console.log("Начинаем генерацию изображений для медитации");
+  console.log(steps, "steps");
 
   for (const step of steps) {
     try {
@@ -222,11 +221,12 @@ export async function generateImagesForMeditation(steps: Step[]) {
       if (output) {
         const imagePath = output;
         console.log(imagePath, "imagePath");
-        const text = `${step.details}`;
+        const text = step.details[language];
         console.log(text, "text");
+        console.log(step, "step");
         try {
           const processedImage = await addTextOnImage({ imagePath, text, step: step.step });
-          console.log(processedImage, "processedImage");
+
           if (processedImage) {
             imagesWithText.push({ imagePath: processedImage.outputPath, text });
             console.log(`Изображение успешно обработано и сохранено для шага ${step.step}`);
@@ -351,6 +351,7 @@ export async function getMeditationSteps({ prompt }: { prompt: string }) {
       temperature: 0.7,
       response_format: { type: "json_object" },
     });
+    console.log(completion, "completion");
 
     const content = completion.choices[0].message.content;
     if (content === null) {
@@ -362,5 +363,39 @@ export async function getMeditationSteps({ prompt }: { prompt: string }) {
   } catch (error) {
     console.error("Error:", error);
     throw error; // Перебрасываем ошибку, чтобы она могла быть обработана выше
+  }
+}
+
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error("OPENAI_API_KEY is not set");
+}
+
+export async function translateText(text: string, targetLang: string): Promise<string> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o", // или другая подходящая модель
+      messages: [
+        {
+          role: "system",
+          content: `You are a professional translator. Translate the following text to ${targetLang}. Preserve the original meaning and tone as much as possible.`,
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ],
+      temperature: 0.3,
+    });
+
+    const translatedText = completion.choices[0].message.content;
+    // console.log(translatedText, "translatedText");
+    if (translatedText === null) {
+      throw new Error("Received null content from OpenAI");
+    }
+
+    return translatedText;
+  } catch (error) {
+    console.error("Error in translation:", error);
+    throw error;
   }
 }
